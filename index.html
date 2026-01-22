@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Analyseur de Spectre Vocal</title>
+    <title>Analyseur de Spectre Vocal MP3</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
     <div class="container">
-        <h1>Scanner Vocal</h1>
-        <p>Dites "Oui" ou "Non". L'analyse se lance automatiquement.</p>
+        <h1>Scanner Vocal & MP3</h1>
+        <p>Dites "Oui" ou "Non". L'analyse est automatique.</p>
 
         <div id="status-box" class="status-waiting">
             En attente de voix...
@@ -23,6 +23,11 @@
 
         <button id="btn-start">ACTIVER LE MICRO</button>
 
+        <div class="visualizer-container">
+            <h3>Spectre Actuel :</h3>
+            <canvas id="spectrum-canvas" width="350" height="150"></canvas>
+        </div>
+
         <div class="history-section">
             <h3>Vos enregistrements :</h3>
             <ul id="history-list">
@@ -30,6 +35,7 @@
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js"></script>
     <script src="app.js"></script>
 </body>
 </html>
