@@ -4,7 +4,7 @@ body {
     color: white;
     display: flex;
     justify-content: center;
-    padding-top: 50px;
+    padding-top: 30px;
     height: 100vh;
     margin: 0;
 }
@@ -14,8 +14,8 @@ body {
     padding: 2rem;
     border-radius: 15px;
     text-align: center;
-    width: 350px;
-    max-height: 80vh;
+    width: 380px; /* Légèrement plus large */
+    max-height: 90vh;
     display: flex;
     flex-direction: column;
 }
@@ -38,7 +38,7 @@ body {
 }
 
 .result-display {
-    margin: 20px 0;
+    margin-bottom: 20px;
     padding: 20px;
     background: #192a56;
     border-radius: 10px;
@@ -60,8 +60,20 @@ button {
 }
 button:disabled { opacity: 0.5; }
 
-.history-section {
+/* NOUVEAU : Styles pour le visuel */
+.visualizer-container {
     margin-top: 20px;
+    margin-bottom: 10px;
+}
+#spectrum-canvas {
+    width: 100%;
+    height: 150px;
+    background: #2c3e50;
+    border-radius: 10px;
+}
+
+.history-section {
+    margin-top: 10px;
     text-align: left;
     overflow-y: auto;
     flex-grow: 1;
@@ -79,6 +91,24 @@ button:disabled { opacity: 0.5; }
     border-radius: 5px;
     display: flex;
     justify-content: space-between;
+    align-items: center;
     font-size: 0.9rem;
 }
+.note-info {
+    display: flex;
+    flex-direction: column;
+}
 .note-tag { font-weight: bold; color: #00d2d3; }
+
+/* NOUVEAU : Bouton de téléchargement */
+.download-btn {
+    background-color: #27ae60;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    margin-top: 0; /* Annule le margin du bouton global */
+}
+.download-btn:hover { background-color: #2ecc71; }
