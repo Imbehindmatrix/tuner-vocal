@@ -1,21 +1,25 @@
-// --- VARIABLES ---
+// --- VARIABLES GLOBALES ---
 let audioContext = null;
 let analyser = null;
 let mediaStreamSource = null;
+let recorder = null; // Pour l'enregistrement audio brut
+let audioChunks = []; // Stockage temporaire de l'audio
+
 let bufferLength = 2048;
 let buffer = new Float32Array(bufferLength);
+let dataArray = new Uint8Array(bufferLength); // Pour le visuel
 
 // États de l'application
-let isListening = false; // Le micro est ouvert
-let isRecording = false; // On est en train de détecter une voix
-let silenceStart = null; // Chronomètre pour le silence
-let recordedPitches = []; // Stockage temporaire des fréquences du mot
+let isListening = false;
+let isRecording = false;
+let silenceStart = null;
+let recordedPitches = [];
 
 // Seuils
-const VOLUME_THRESHOLD = 0.02; // Sensibilité du micro (Volume minimum pour déclencher)
-const SILENCE_DELAY = 1000; // Arrêt après 1000ms (1s) de silence
+const VOLUME_THRESHOLD = 0.02;
+const SILENCE_DELAY = 1000;
 
-// Notes de musique (Notation française)
+// Notes
 const noteStrings = ["Do", "Do#", "Ré", "Ré#", "Mi", "Fa", "Fa#", "Sol", "Sol#", "La", "La#", "Si"];
 
 // Éléments DOM
@@ -24,6 +28,8 @@ const bigNote = document.getElementById('big-note');
 const bigHz = document.getElementById('big-hz');
 const historyList = document.getElementById('history-list');
 const btnStart = document.getElementById('btn-start');
+const canvas = document.getElementById('spectrum-canvas');
+const canvasCtx = canvas.getContext('2d');
 
 // --- DÉMARRAGE ---
 btnStart.addEventListener('click', async () => {
@@ -37,110 +43,195 @@ btnStart.addEventListener('click', async () => {
         analyser.fftSize = 2048;
         mediaStreamSource.connect(analyser);
 
+        // Configuration de l'enregistreur (pour le MP3)
+        recorder = new MediaRecorder(stream);
+        recorder.ondataavailable = (e) => {
+            if (e.data.size > 0) audioChunks.push(e.data);
+        };
+
         isListening = true;
-        btnStart.textContent = "Micro Actif - Parlez maintenant !";
+        btnStart.textContent = "Micro Actif - Parlez !";
         btnStart.disabled = true;
         
-        // Lancer la boucle
-        loop();
+        loop(); // Lancer la boucle d'analyse et de dessin
     } catch (err) {
         alert("Erreur micro : " + err);
     }
 });
 
-// --- BOUCLE D'ANALYSE (Tourne 60 fois par seconde) ---
+// --- BOUCLE PRINCIPALE (Analyse + Visuel) ---
 function loop() {
     requestAnimationFrame(loop);
     if (!isListening) return;
 
-    analyser.getFloatTimeDomainData(buffer);
+    analyser.getFloatTimeDomainData(buffer); // Pour le pitch
+    analyser.getByteFrequencyData(dataArray); // Pour le visuel
     
+    drawVisualizer(); // Dessiner le demi-cercle
+
     // 1. Calcul du volume (RMS)
     let rms = 0;
-    for (let i = 0; i < bufferLength; i++) {
-        rms += buffer[i] * buffer[i];
-    }
+    for (let i = 0; i < bufferLength; i++) { rms += buffer[i] * buffer[i]; }
     rms = Math.sqrt(rms / bufferLength);
 
-    // 2. Détection de fréquence (Pitch)
+    // 2. Détection de fréquence
     let pitch = autoCorrelate(buffer, audioContext.sampleRate);
 
-    // --- LOGIQUE DE DÉTECTION DE PAROLE ---
-    
+    // --- LOGIQUE DE DÉTECTION ---
     if (rms > VOLUME_THRESHOLD) {
         // ==> ON PARLE
         if (!isRecording) {
             isRecording = true;
-            recordedPitches = []; // Nouveau mot, on vide la mémoire
+            recordedPitches = [];
+            audioChunks = []; // On vide le buffer audio
+            recorder.start(); // On commence à enregistrer le son pour le MP3
             statusBox.textContent = "🔴 Enregistrement...";
             statusBox.className = "status-recording";
         }
-        
-        // On réinitialise le timer de silence car on entend du bruit
         silenceStart = null;
-
-        // Si on a une fréquence valide, on la garde en mémoire
-        if (pitch !== -1) {
-            recordedPitches.push(pitch);
-        }
-
+        if (pitch !== -1) recordedPitches.push(pitch);
     } else {
         // ==> SILENCE
         if (isRecording) {
-            // On vient de s'arrêter de parler, on lance le chrono
             if (!silenceStart) {
                 silenceStart = Date.now();
-            } else {
-                // Si le silence dure depuis plus de 1s (SILENCE_DELAY)
-                if (Date.now() - silenceStart > SILENCE_DELAY) {
-                    finishRecording(); // TERMINÉ !
-                }
+            } else if (Date.now() - silenceStart > SILENCE_DELAY) {
+                finishRecording(); // TERMINÉ !
             }
         }
     }
 }
 
-// --- QUAND L'ENREGISTREMENT EST FINI ---
+// --- FIN DE L'ENREGISTREMENT ---
 function finishRecording() {
     isRecording = false;
-    silenceStart = null;
-    statusBox.textContent = "Analyse...";
+    recorder.stop(); // Arrêter l'enregistrement audio
+    statusBox.textContent = "Analyse & Encodage...";
     statusBox.className = "status-analyzing";
 
-    // Calculer la moyenne des fréquences capturées
+    // Calcul du pitch médian
+    let medianPitch = 0;
+    let noteInfo = { note: "--", octave: "" };
     if (recordedPitches.length > 0) {
-        // On trie et on prend la médiane (plus fiable que la moyenne)
         recordedPitches.sort((a, b) => a - b);
-        let medianPitch = recordedPitches[Math.floor(recordedPitches.length / 2)];
-        
-        // Trouver la note
-        let noteInfo = getNote(medianPitch);
-
-        // Affichage Principal
-        bigNote.innerText = noteInfo.note + (noteInfo.octave);
-        bigHz.innerText = Math.round(medianPitch) + " Hz";
-
-        // Ajout à la liste
-        addToHistory(noteInfo.note + noteInfo.octave, Math.round(medianPitch));
+        medianPitch = recordedPitches[Math.floor(recordedPitches.length / 2)];
+        noteInfo = getNote(medianPitch);
     }
 
-    // Remise à zéro visuelle après un court instant
-    setTimeout(() => {
-        statusBox.textContent = "En attente de voix...";
-        statusBox.className = "status-waiting";
-    }, 1000);
+    // Affichage
+    bigNote.innerText = noteInfo.note + noteInfo.octave;
+    bigHz.innerText = Math.round(medianPitch) + " Hz";
+
+    // Encodage MP3 (une fois que les données sont prêtes)
+    recorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' }); // D'abord en WAV
+        const mp3Blob = await convertToMp3(audioBlob); // Puis conversion MP3
+        const audioUrl = URL.createObjectURL(mp3Blob);
+        
+        addToHistory(noteInfo.note + noteInfo.octave, Math.round(medianPitch), audioUrl, medianPitch);
+        
+        setTimeout(() => {
+            statusBox.textContent = "En attente de voix...";
+            statusBox.className = "status-waiting";
+        }, 1000);
+    };
 }
 
-// --- OUTILS MATHÉMATIQUES ---
+// --- NOUVEAU : FONCTION DE DESSIN DU VISUEL ---
+function drawVisualizer() {
+    const WIDTH = canvas.width;
+    const HEIGHT = canvas.height;
+    const CENTER_X = WIDTH / 2;
+    const CENTER_Y = HEIGHT; // Bas du canvas
+    const RADIUS = HEIGHT - 20;
+    
+    canvasCtx.clearRect(0, 0, WIDTH, HEIGHT);
 
-function addToHistory(note, freq) {
+    // On ne dessine que si on enregistre ou si on parle
+    if (!isRecording && statusBox.className !== "status-recording") return;
+
+    const bars = 60; // Nombre de barres dans le demi-cercle
+    const step = Math.PI / bars; // Espace entre chaque barre
+
+    for (let i = 0; i < bars; i++) {
+        // On prend les fréquences basses à moyennes (là où est la voix)
+        let value = dataArray[i + 5] / 255; 
+        let barHeight = value * RADIUS * 0.8;
+
+        // Couleur basée sur la position (Grave=Rouge -> Aigu=Bleu)
+        let hue = (i / bars) * 240; 
+        canvasCtx.fillStyle = `hsl(${hue}, 100%, 50%)`;
+
+        let angle = Math.PI + (i * step); // Commence à gauche (PI) et va à droite (2*PI)
+
+        // Coordonnées du début de la barre (sur le cercle)
+        let x1 = CENTER_X + RADIUS * Math.cos(angle);
+        let y1 = CENTER_Y + RADIUS * Math.sin(angle);
+        
+        // Coordonnées de la fin de la barre (vers l'extérieur)
+        let x2 = CENTER_X + (RADIUS + barHeight) * Math.cos(angle);
+        let y2 = CENTER_Y + (RADIUS + barHeight) * Math.sin(angle);
+
+        canvasCtx.beginPath();
+        canvasCtx.moveTo(x1, y1);
+        canvasCtx.lineTo(x2, y2);
+        canvasCtx.lineWidth = WIDTH / bars / 2;
+        canvasCtx.strokeStyle = `hsl(${hue}, 100%, 50%)`;
+        canvasCtx.stroke();
+    }
+}
+
+// --- OUTILS MATHÉMATIQUES & AJOUTS ---
+
+// Fonction pour convertir WAV -> MP3 via lamejs
+async function convertToMp3(blob) {
+    const audioContext = new AudioContext();
+    const arrayBuffer = await blob.arrayBuffer();
+    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+    const mp3Encoder = new lamejs.Mp3Encoder(1, audioBuffer.sampleRate, 128); // Mono, 128kbps
+    const samples = audioBuffer.getChannelData(0);
+    // Convertir float32 en int16 pour lamejs
+    let sampleData = new Int16Array(samples.length);
+    for (let i = 0; i < samples.length; i++) {
+        sampleData[i] = samples[i] * 32767.5;
+    }
+
+    let mp3Data = [];
+    let blockSize = 1152;
+    for (let i = 0; i < sampleData.length; i += blockSize) {
+        let sampleChunk = sampleData.subarray(i, i + blockSize);
+        let mp3buf = mp3Encoder.encodeBuffer(sampleChunk);
+        if (mp3buf.length > 0) mp3Data.push(mp3buf);
+    }
+    let mp3buf = mp3Encoder.flush();
+    if (mp3buf.length > 0) mp3Data.push(mp3buf);
+
+    return new Blob(mp3Data, { type: 'audio/mp3' });
+}
+
+function addToHistory(note, freq, audioUrl, rawFreq) {
     const li = document.createElement('li');
-    li.innerHTML = `<span class="note-tag">${note}</span> <span>${freq} Hz</span>`;
-    // Insérer en haut de la liste
+    
+    // Créer un petit indicateur de couleur pour le visuel
+    let hue = 0;
+    // Mapping grossier de la fréquence (80Hz-1000Hz) vers une couleur (Rouge-Bleu)
+    if (rawFreq > 0) hue = Math.min(240, Math.max(0, (rawFreq - 80) / (1000 - 80) * 240));
+    const colorIndicator = `<span style="display:inline-block; width:10px; height:10px; border-radius:50%; background-color:hsl(${hue}, 100%, 50%); margin-right:10px;"></span>`;
+
+    li.innerHTML = `
+        <div class="note-info">
+            <div>${colorIndicator}<span class="note-tag">${note}</span></div>
+            <span>${freq} Hz</span>
+        </div>
+        <a href="${audioUrl}" download="enregistrement_${note}_${freq}Hz.mp3">
+            <button class="download-btn">Télécharger MP3</button>
+        </a>
+    `;
     historyList.insertBefore(li, historyList.firstChild);
 }
 
-// Convertir Hz en Note (Do, Ré, Mi...)
+// ... (Les fonctions getNote et autoCorrelate sont identiques au code précédent, je ne les remets pas pour gagner de la place, mais ELLES DOIVENT Y ÊTRE) ...
 function getNote(frequency) {
     let noteNum = 12 * (Math.log(frequency / 440) / Math.log(2));
     let midi = Math.round(noteNum) + 69;
@@ -148,8 +239,6 @@ function getNote(frequency) {
     let octave = Math.floor(midi / 12) - 1;
     return { note: note, octave: octave };
 }
-
-// Algorithme d'Autocorrélation (Le même qu'avant)
 function autoCorrelate(buf, sampleRate) {
     let SIZE = buf.length;
     let rms = 0;
