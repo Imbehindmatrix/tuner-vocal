@@ -1,59 +1,165 @@
-// --- VARIABLES GLOBALES ---
+// --- VARIABLES ---
 let audioContext = null;
 let analyser = null;
 let mediaStreamSource = null;
-let isRunning = false;
-let rafID = null; // ID pour l'animation frame
-const buflen = 2048;
-let buf = new Float32Array(buflen); // Mémoire pour le son
+let bufferLength = 2048;
+let buffer = new Float32Array(bufferLength);
 
-// --- ÉLÉMENTS HTML ---
-const hzDisplay = document.getElementById('hz-display');
-const feedbackDisplay = document.getElementById('note-feedback');
-const gaugeFill = document.getElementById('gauge-fill');
-const targetSelect = document.getElementById('target-pitch');
+// États de l'application
+let isListening = false; // Le micro est ouvert
+let isRecording = false; // On est en train de détecter une voix
+let silenceStart = null; // Chronomètre pour le silence
+let recordedPitches = []; // Stockage temporaire des fréquences du mot
+
+// Seuils
+const VOLUME_THRESHOLD = 0.02; // Sensibilité du micro (Volume minimum pour déclencher)
+const SILENCE_DELAY = 1000; // Arrêt après 1000ms (1s) de silence
+
+// Notes de musique (Notation française)
+const noteStrings = ["Do", "Do#", "Ré", "Ré#", "Mi", "Fa", "Fa#", "Sol", "Sol#", "La", "La#", "Si"];
+
+// Éléments DOM
+const statusBox = document.getElementById('status-box');
+const bigNote = document.getElementById('big-note');
+const bigHz = document.getElementById('big-hz');
+const historyList = document.getElementById('history-list');
 const btnStart = document.getElementById('btn-start');
 
-// --- DÉMARRAGE DU MICRO ---
-btnStart.addEventListener('click', function() {
-    if (isRunning) return; // Évite de lancer 2 fois
-    
-    // Création du contexte audio
+// --- DÉMARRAGE ---
+btnStart.addEventListener('click', async () => {
+    if (audioContext) return;
+
     audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    
-    // Demande d'accès au micro
-    navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         mediaStreamSource = audioContext.createMediaStreamSource(stream);
         analyser = audioContext.createAnalyser();
         analyser.fftSize = 2048;
         mediaStreamSource.connect(analyser);
+
+        isListening = true;
+        btnStart.textContent = "Micro Actif - Parlez maintenant !";
+        btnStart.disabled = true;
         
-        isRunning = true;
-        btnStart.textContent = "Micro en écoute...";
-        btnStart.style.backgroundColor = "#7f8c8d"; // Griser le bouton
-        
-        updatePitch(); // Lancer la boucle d'analyse
-    }).catch(err => {
-        alert("Erreur : Impossible d'accéder au micro.");
-        console.error(err);
-    });
+        // Lancer la boucle
+        loop();
+    } catch (err) {
+        alert("Erreur micro : " + err);
+    }
 });
 
-// --- ALGORITHME D'AUTOCORRÉLATION (Mathématiques) ---
-// Cette fonction trouve la fréquence fondamentale dans le bruit
+// --- BOUCLE D'ANALYSE (Tourne 60 fois par seconde) ---
+function loop() {
+    requestAnimationFrame(loop);
+    if (!isListening) return;
+
+    analyser.getFloatTimeDomainData(buffer);
+    
+    // 1. Calcul du volume (RMS)
+    let rms = 0;
+    for (let i = 0; i < bufferLength; i++) {
+        rms += buffer[i] * buffer[i];
+    }
+    rms = Math.sqrt(rms / bufferLength);
+
+    // 2. Détection de fréquence (Pitch)
+    let pitch = autoCorrelate(buffer, audioContext.sampleRate);
+
+    // --- LOGIQUE DE DÉTECTION DE PAROLE ---
+    
+    if (rms > VOLUME_THRESHOLD) {
+        // ==> ON PARLE
+        if (!isRecording) {
+            isRecording = true;
+            recordedPitches = []; // Nouveau mot, on vide la mémoire
+            statusBox.textContent = "🔴 Enregistrement...";
+            statusBox.className = "status-recording";
+        }
+        
+        // On réinitialise le timer de silence car on entend du bruit
+        silenceStart = null;
+
+        // Si on a une fréquence valide, on la garde en mémoire
+        if (pitch !== -1) {
+            recordedPitches.push(pitch);
+        }
+
+    } else {
+        // ==> SILENCE
+        if (isRecording) {
+            // On vient de s'arrêter de parler, on lance le chrono
+            if (!silenceStart) {
+                silenceStart = Date.now();
+            } else {
+                // Si le silence dure depuis plus de 1s (SILENCE_DELAY)
+                if (Date.now() - silenceStart > SILENCE_DELAY) {
+                    finishRecording(); // TERMINÉ !
+                }
+            }
+        }
+    }
+}
+
+// --- QUAND L'ENREGISTREMENT EST FINI ---
+function finishRecording() {
+    isRecording = false;
+    silenceStart = null;
+    statusBox.textContent = "Analyse...";
+    statusBox.className = "status-analyzing";
+
+    // Calculer la moyenne des fréquences capturées
+    if (recordedPitches.length > 0) {
+        // On trie et on prend la médiane (plus fiable que la moyenne)
+        recordedPitches.sort((a, b) => a - b);
+        let medianPitch = recordedPitches[Math.floor(recordedPitches.length / 2)];
+        
+        // Trouver la note
+        let noteInfo = getNote(medianPitch);
+
+        // Affichage Principal
+        bigNote.innerText = noteInfo.note + (noteInfo.octave);
+        bigHz.innerText = Math.round(medianPitch) + " Hz";
+
+        // Ajout à la liste
+        addToHistory(noteInfo.note + noteInfo.octave, Math.round(medianPitch));
+    }
+
+    // Remise à zéro visuelle après un court instant
+    setTimeout(() => {
+        statusBox.textContent = "En attente de voix...";
+        statusBox.className = "status-waiting";
+    }, 1000);
+}
+
+// --- OUTILS MATHÉMATIQUES ---
+
+function addToHistory(note, freq) {
+    const li = document.createElement('li');
+    li.innerHTML = `<span class="note-tag">${note}</span> <span>${freq} Hz</span>`;
+    // Insérer en haut de la liste
+    historyList.insertBefore(li, historyList.firstChild);
+}
+
+// Convertir Hz en Note (Do, Ré, Mi...)
+function getNote(frequency) {
+    let noteNum = 12 * (Math.log(frequency / 440) / Math.log(2));
+    let midi = Math.round(noteNum) + 69;
+    let note = noteStrings[midi % 12];
+    let octave = Math.floor(midi / 12) - 1;
+    return { note: note, octave: octave };
+}
+
+// Algorithme d'Autocorrélation (Le même qu'avant)
 function autoCorrelate(buf, sampleRate) {
     let SIZE = buf.length;
-    let rms = 0; // Root Mean Square (Volume)
-
-    // 1. Calculer le volume pour éviter d'analyser le silence
+    let rms = 0;
     for (let i = 0; i < SIZE; i++) {
         let val = buf[i];
         rms += val * val;
     }
     rms = Math.sqrt(rms / SIZE);
-    if (rms < 0.01) return -1; // Trop silencieux
+    if (rms < 0.01) return -1;
 
-    // 2. Autocorrélation
     let r1 = 0, r2 = SIZE - 1, thres = 0.2;
     for (let i = 0; i < SIZE / 2; i++) {
         if (Math.abs(buf[i]) < thres) { r1 = i; break; }
@@ -81,47 +187,5 @@ function autoCorrelate(buf, sampleRate) {
         }
     }
     let T0 = maxpos;
-
-    // Formule pour convertir en Hertz
     return sampleRate / T0;
-}
-
-// --- BOUCLE PRINCIPALE (Mise à jour de l'écran) ---
-function updatePitch() {
-    analyser.getFloatTimeDomainData(buf);
-    let ac = autoCorrelate(buf, audioContext.sampleRate);
-    
-    if (ac !== -1) { // Si on entend un son
-        let pitch = Math.round(ac);
-        let target = parseInt(targetSelect.value);
-        
-        hzDisplay.innerText = pitch + " Hz";
-        
-        // Logique de la jauge (Feedback)
-        let difference = Math.abs(pitch - target);
-        
-        if (difference < 5) {
-            // BRAVO : On est sur la note (à 5Hz près)
-            feedbackDisplay.innerText = "Parfait !";
-            feedbackDisplay.style.color = "#2ecc71"; // Vert
-            gaugeFill.style.backgroundColor = "#2ecc71";
-            gaugeFill.style.width = "100%";
-        } else if (pitch < target) {
-            feedbackDisplay.innerText = "Trop Grave ↑";
-            feedbackDisplay.style.color = "#e74c3c"; 
-            gaugeFill.style.backgroundColor = "#e74c3c";
-            gaugeFill.style.width = "50%";
-        } else {
-            feedbackDisplay.innerText = "Trop Aigu ↓";
-            feedbackDisplay.style.color = "#f39c12"; 
-            gaugeFill.style.backgroundColor = "#f39c12";
-            gaugeFill.style.width = "50%";
-        }
-    } else {
-        // Silence
-        feedbackDisplay.innerText = "...";
-        gaugeFill.style.width = "0%";
-    }
-
-    rafID = window.requestAnimationFrame(updatePitch);
 }
