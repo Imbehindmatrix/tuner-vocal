@@ -3,33 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Coach Vocal Oui/Non</title>
+    <title>Analyseur de Spectre Vocal</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container">
-        <h1>Défi Vocal</h1>
-        <p>Dites "OUI" en tenant la note quelques secondes.</p>
 
-        <div class="controls">
-            <label for="target-pitch">Cible :</label>
-            <select id="target-pitch">
-                <option value="98">Grave (Sol2 - 98Hz)</option>
-                <option value="130">Homme Moyen (Do2 - 130Hz)</option>
-                <option value="261" selected>Femme Moyenne (Do3 - 261Hz)</option>
-                <option value="440">Aigu (La3 - 440Hz)</option>
-            </select>
+    <div class="container">
+        <h1>Scanner Vocal</h1>
+        <p>Dites "Oui" ou "Non". L'analyse se lance automatiquement.</p>
+
+        <div id="status-box" class="status-waiting">
+            En attente de voix...
         </div>
 
-        <div class="visualizer">
-            <div id="hz-display">0 Hz</div>
-            <div id="note-feedback">En attente...</div>
-            <div class="gauge-bar">
-                <div id="gauge-fill"></div>
-            </div>
+        <div class="result-display">
+            <div id="big-note">--</div>
+            <div id="big-hz">0 Hz</div>
         </div>
 
         <button id="btn-start">ACTIVER LE MICRO</button>
+
+        <div class="history-section">
+            <h3>Vos enregistrements :</h3>
+            <ul id="history-list">
+                </ul>
+        </div>
     </div>
 
     <script src="app.js"></script>
