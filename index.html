@@ -3,17 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scanner Vocal Pro MP3</title>
+    <title>Analyseur de Spectre Vocal MP3</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
     <div class="container">
-        <h1>Scanner Vocal Pro</h1>
-        <p>Activez le micro. Dites "Oui" ou "Non".</p>
+        <h1>Scanner Vocal & MP3</h1>
+        <p>Dites "Oui" ou "Non". L'analyse est automatique.</p>
 
         <div id="status-box" class="status-waiting">
-            Micro désactivé
+            En attente de voix...
         </div>
 
         <div class="result-display">
@@ -21,9 +21,10 @@
             <div id="big-hz">0 Hz</div>
         </div>
 
-        <button id="btn-toggle" class="btn-off">ACTIVER LE MICRO</button>
+        <button id="btn-start">ACTIVER LE MICRO</button>
 
         <div class="visualizer-container">
+            <h3>Spectre Actuel :</h3>
             <canvas id="spectrum-canvas" width="350" height="150"></canvas>
         </div>
 
