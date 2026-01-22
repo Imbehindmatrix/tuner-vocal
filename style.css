@@ -1,5 +1,5 @@
 body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-family: 'Segoe UI', sans-serif;
     background-color: #1e272e;
     color: white;
     display: flex;
@@ -14,29 +14,22 @@ body {
     padding: 2rem;
     border-radius: 15px;
     text-align: center;
-    width: 380px;
+    width: 380px; /* Légèrement plus large */
     max-height: 90vh;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
 }
 
-h1 { margin-top: 0; color: #f5f6fa; }
-p { color: #dcdde1; margin-bottom: 20px; }
-
-/* BOITE D'ÉTAT */
 #status-box {
-    padding: 12px;
-    margin-bottom: 20px;
+    padding: 10px;
+    margin: 20px 0;
     border-radius: 5px;
     font-weight: bold;
     transition: all 0.3s;
-    background: #353b48; 
-    color: #7f8c8d;
 }
 .status-waiting { background: #353b48; color: #7f8c8d; }
-.status-recording { background: #e74c3c !important; color: white !important; animation: pulse 1s infinite; }
-.status-analyzing { background: #f1c40f !important; color: black !important; }
+.status-recording { background: #e74c3c; color: white; animation: pulse 1s infinite; }
+.status-analyzing { background: #f1c40f; color: black; }
 
 @keyframes pulse {
     0% { transform: scale(1); }
@@ -44,51 +37,32 @@ p { color: #dcdde1; margin-bottom: 20px; }
     100% { transform: scale(1); }
 }
 
-/* AFFICHAGE DU RÉSULTAT */
 .result-display {
     margin-bottom: 20px;
-    padding: 15px;
+    padding: 20px;
     background: #192a56;
     border-radius: 10px;
     border: 2px solid #273c75;
 }
+
 #big-note { font-size: 3rem; font-weight: bold; color: #00d2d3; }
 #big-hz { font-size: 1.2rem; color: #c8d6e5; }
 
-/* BOUTON ON/OFF */
 button {
     padding: 15px;
     font-size: 1.1rem;
+    background-color: #0984e3;
     color: white;
     border: none;
     border-radius: 5px;
     cursor: pointer;
     width: 100%;
-    font-weight: bold;
-    transition: background 0.3s, box-shadow 0.3s;
-    margin-bottom: 20px;
 }
-/* État Éteint (Bleu) */
-.btn-off {
-    background-color: #0984e3;
-}
-.btn-off:hover { background-color: #74b9ff; }
+button:disabled { opacity: 0.5; }
 
-/* État Allumé (Rouge clignotant) */
-.btn-on {
-    background-color: #c0392b;
-    animation: pulse-border 2s infinite;
-}
-.btn-on:hover { background-color: #e74c3c; }
-
-@keyframes pulse-border {
-    0% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.7); }
-    70% { box-shadow: 0 0 0 10px rgba(231, 76, 60, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0); }
-}
-
-/* VISUEL */
+/* NOUVEAU : Styles pour le visuel */
 .visualizer-container {
+    margin-top: 20px;
     margin-bottom: 10px;
 }
 #spectrum-canvas {
@@ -98,23 +72,21 @@ button {
     border-radius: 10px;
 }
 
-/* HISTORIQUE */
 .history-section {
     margin-top: 10px;
     text-align: left;
     overflow-y: auto;
     flex-grow: 1;
-    border-top: 1px solid #555;
-    padding-top: 10px;
 }
+
 #history-list {
     list-style: none;
     padding: 0;
-    margin: 0;
 }
+
 #history-list li {
     background: #353b48;
-    margin-bottom: 8px;
+    margin-bottom: 5px;
     padding: 10px;
     border-radius: 5px;
     display: flex;
@@ -122,15 +94,21 @@ button {
     align-items: center;
     font-size: 0.9rem;
 }
-.note-info { display: flex; align-items: center; }
+.note-info {
+    display: flex;
+    flex-direction: column;
+}
 .note-tag { font-weight: bold; color: #00d2d3; }
 
-/* Bouton Télécharger (Petit vert) */
+/* NOUVEAU : Bouton de téléchargement */
 .download-btn {
     background-color: #27ae60;
-    width: auto; /* Annule la largeur 100% */
-    padding: 5px 10px;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 5px;
+    cursor: pointer;
     font-size: 0.8rem;
-    margin: 0;
+    margin-top: 0; /* Annule le margin du bouton global */
 }
 .download-btn:hover { background-color: #2ecc71; }
